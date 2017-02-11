@@ -9,13 +9,13 @@ import cv2
 import image_augumentator as ia
 
 # load dataset
-#dataDir  = 'data/'
 dataDir = 'D:/python/SDC/Projects/P3/Data/sampleDataTrack1/data/'
 img_name,img_data,val_name,val_data = ia.gather_image_information(dataDir,percentZeroAngle = 5, addHighAngle = True,percentValData = 10)
 
+# python generator for generating validation data using only centre image also includes resizing and normalizing of image to modified NVIDIA model.
 def generate_val_data(xdata,ydata,dataDir,batch_size = 64):
     normMin, normMax = -0.5, 0.5 # normalize and combine image between -0.5 to 0.5 in all 3 RGB or YUV
-    RGBMin, RGBMax   = 0, 255
+    RGBMin, RGBMax   = 0, 255 # image are loaded in RGB 8bit i.e. 0-255 value for each color channel.
     X_data = np.empty((batch_size,66,200,3))
     Y_data = np.empty((batch_size,1))
     while 1:
@@ -29,10 +29,10 @@ def generate_val_data(xdata,ydata,dataDir,batch_size = 64):
             Y_data[i_batch,0] = angle
         yield X_data,Y_data
 
+# python generator for generating training data including augumentation using all centre/left and right images. It also includes resizing and normalizing of image to modified NVIDIA model.
 def generate_train_data_batch(xdata,ydata,dataDir,batch_size = 64):
-    # normalize/resize/change RGB to YUV as per nVidia paper
     normMin, normMax = -0.5, 0.5 # normalize and combine image between -0.5 to 0.5 in all 3 RGB or YUV
-    RGBMin, RGBMax   = 0, 255
+    RGBMin, RGBMax   = 0, 255 # image are loaded in RGB 8bit i.e. 0-255 value for each color channel.
     X_data = np.empty((batch_size,66,200,3))
     Y_data = np.empty((batch_size,1))   
     while 1:
@@ -54,6 +54,7 @@ def generate_train_data_batch(xdata,ydata,dataDir,batch_size = 64):
             Y_data[i_batch,:] = angle
         yield X_data,Y_data
 
+# KERAS model - modified NVIDIA to decrease overfitting by adding dropout layers.
 model = Sequential()
 model.add(Convolution2D(24, 5, 5, input_shape=(66, 200, 3), subsample = (2,2), activation = 'relu'))
 model.add(Convolution2D(36, 5, 5,subsample = (2,2), activation = 'relu'))
@@ -65,18 +66,19 @@ model.add(Dense(100,init='uniform', activation='relu'))
 model.add(Dropout(p=0.5))
 model.add(Dense(50,init='uniform', activation='relu'))
 model.add(Dropout(p=0.5))
-model.add(Dense(10,init='uniform', activation='tanh'))
+model.add(Dense(10,init='uniform', activation='tanh')) # tanh gives -1 to 1 as steering angle output. 
 model.add(Dropout(p=0.5))
-model.add(Dense(1,name='y_pred'))
+model.add(Dense(1,name='y_pred')) # give the single batch steering angle output
 #load saved weights
 model.load_weights('model.h5')
 # Compile model
 opt = Adam(lr=0.0001)
 model.compile(loss='mse', optimizer=opt)
-# Fit the model
+
+# Fit the model with 7 epochs and 20480 samples each
 hist = model.fit_generator(generate_train_data_batch(img_name,img_data,dataDir), nb_epoch=7, samples_per_epoch=20480, \
                            validation_data = generate_val_data(val_name,val_data,dataDir), nb_val_samples=64)
- 
+
 # serialize model to JSON
 model_json = model.to_json()
 with open("model.json", "w") as json_file:

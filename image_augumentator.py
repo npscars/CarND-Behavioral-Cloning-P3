@@ -2,6 +2,13 @@
 """
 Created on Fri Feb 10 19:50:07 2017
 
+contains following functions:
+    1) gather_image_information: get validation and training data and also increase number of high angle data and significantly reduce zero angle data 
+    2) load_image_as_matrix: read image from file and convert it into a matrix and get corresponding steering angle
+    3) flip_camera_images: flip images randomly only on vertical axis and flip steering angle too
+    4) augment_brightness_camera_images: copied from Vivek Yadav's code of how to add random brightness to images
+    5) add_random_shadow: Again thanks to Vivek for code and helping understand how to add random shadow to images
+
 @author: SHAHN
 """
 import numpy as np
@@ -25,7 +32,7 @@ def gather_image_information(dataDir,percentZeroAngle=5,addHighAngle=True,highAn
     if addHighAngle == True:
         idxHighSteer = np.transpose(np.asarray(np.where(np.logical_or(img_data[:,0]>highAngle,img_data[:,0]<-highAngle))))
         idxConsiderForModel = np.concatenate((idxConsiderForModel,idxHighSteer[:,0]),axis=0)
-
+    # add randomness to the index selected to decrease the bias of typical data in training or validation data
     np.random.shuffle(idxConsiderForModel)
 
     firstValDataidx = np.int(len(idxConsiderForModel) - len(idxConsiderForModel)*(percentValData/100)) # take last 20% data as validation after full shuffle
