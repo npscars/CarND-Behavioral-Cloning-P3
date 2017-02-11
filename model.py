@@ -15,6 +15,7 @@ img_name,img_data,val_name,val_data = ia.gather_image_information(dataDir,percen
 
 def generate_val_data(xdata,ydata,dataDir,batch_size = 64):
     normMin, normMax = -0.5, 0.5 # normalize and combine image between -0.5 to 0.5 in all 3 RGB or YUV
+    RGBMin, RGBMax   = 0, 255
     X_data = np.empty((batch_size,66,200,3))
     Y_data = np.empty((batch_size,1))
     while 1:
@@ -24,13 +25,14 @@ def generate_val_data(xdata,ydata,dataDir,batch_size = 64):
             temp, angle = ia.load_image_as_matrix(xdata[i_select,:],ydata[i_select,0],dataDir,i_lcr) 
             temp = cv2.resize(temp[55:-20,:,:],(200,66),interpolation = cv2.INTER_AREA) # already normalizes to between 0-1 from 0-255
             temp = cv2.cvtColor(temp, cv2.COLOR_RGB2YUV)
-            X_data[i_batch,:] = np.reshape(normMin + ((temp-0)*(normMax-normMin))/(1-0),(1,66,200,3))
+            X_data[i_batch,:] = np.reshape(normMin + ((temp-RGBMin)*(normMax-normMin))/(RGBMax-RGBMin),(1,66,200,3))
             Y_data[i_batch,0] = angle
         yield X_data,Y_data
 
 def generate_train_data_batch(xdata,ydata,dataDir,batch_size = 64):
     # normalize/resize/change RGB to YUV as per nVidia paper
     normMin, normMax = -0.5, 0.5 # normalize and combine image between -0.5 to 0.5 in all 3 RGB or YUV
+    RGBMin, RGBMax   = 0, 255
     X_data = np.empty((batch_size,66,200,3))
     Y_data = np.empty((batch_size,1))   
     while 1:
@@ -48,7 +50,7 @@ def generate_train_data_batch(xdata,ydata,dataDir,batch_size = 64):
             # part of input to model fitting so don't change below
             temp = cv2.resize(temp[55:-20,:,:],(200,66),interpolation = cv2.INTER_AREA) # already normalizes to between 0-1 from 0-255
             temp = cv2.cvtColor(temp, cv2.COLOR_RGB2YUV)
-            X_data[i_batch,:] = np.reshape(normMin + ((temp-0)*(normMax-normMin))/(1-0),(1,66,200,3))
+            X_data[i_batch,:] = np.reshape(normMin + ((temp-RGBMin)*(normMax-normMin))/(RGBMax-RGBMin),(1,66,200,3))
             Y_data[i_batch,:] = angle
         yield X_data,Y_data
 
@@ -72,7 +74,7 @@ model.load_weights('model.h5')
 opt = Adam(lr=0.0001)
 model.compile(loss='mse', optimizer=opt)
 # Fit the model
-hist = model.fit_generator(generate_train_data_batch(img_name,img_data,dataDir), nb_epoch=5, samples_per_epoch=20480, \
+hist = model.fit_generator(generate_train_data_batch(img_name,img_data,dataDir), nb_epoch=7, samples_per_epoch=20480, \
                            validation_data = generate_val_data(val_name,val_data,dataDir), nb_val_samples=64)
  
 # serialize model to JSON

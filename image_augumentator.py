@@ -5,7 +5,6 @@ Created on Fri Feb 10 19:50:07 2017
 @author: SHAHN
 """
 import numpy as np
-#from skimage.transform import resize
 #import matplotlib.pyplot as plt
 import scipy.ndimage as snd
 import cv2

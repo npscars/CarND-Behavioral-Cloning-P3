@@ -12,7 +12,11 @@ from PIL import Image
 from flask import Flask
 from io import BytesIO
 
-from keras.models import load_model
+#from keras.models import load_model
+from keras.models import model_from_json
+#import h5py
+#from keras import __version__ as keras_version
+import cv2
 
 sio = socketio.Server()
 app = Flask(__name__)
@@ -33,8 +37,23 @@ def telemetry(sid, data):
         imgString = data["image"]
         image = Image.open(BytesIO(base64.b64decode(imgString)))
         image_array = np.asarray(image)
-        steering_angle = float(model.predict(image_array[None, :, :, :], batch_size=1))
-        throttle = 0.2
+        
+        normMin, normMax = -0.5, 0.5
+        RGBMin, RGBMax   = 0, 255
+        transformed_image_array = cv2.resize(image_array[55:-20,:,:],(200,66),interpolation = cv2.INTER_AREA) # already normalizes to between 0-1 from 0-255
+        transformed_image_array = cv2.cvtColor(transformed_image_array, cv2.COLOR_RGB2YUV)
+        transformed_image_array = normMin + ((transformed_image_array-RGBMin)*(normMax-normMin))/(RGBMax-RGBMin)
+       
+        steering_angle = float(model.predict(transformed_image_array[None, :, :, :], batch_size=1))
+        min_speed = 10
+        max_speed = 15
+        if float(speed) < min_speed:
+            throttle = 1.0
+        elif float(speed) > max_speed:
+            throttle = -1.0
+        else:
+            throttle = 0.15
+        
         print(steering_angle, throttle)
         send_control(steering_angle, throttle)
 
@@ -69,7 +88,7 @@ if __name__ == '__main__':
     parser.add_argument(
         'model',
         type=str,
-        help='Path to model h5 file. Model should be on the same path.'
+        help='Path to model definition json. Model weights should be on the same path.'
     )
     parser.add_argument(
         'image_folder',
@@ -80,7 +99,30 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    model = load_model(args.model)
+    # check that model Keras version is same as local Keras version
+    #f = h5py.File(args.model, mode='r')
+    #model_version = f.attrs.get('keras_version')
+    #keras_version = str(keras_version).encode('utf8')
+
+    #if model_version != keras_version:
+    #    print('You are using Keras version ', keras_version,
+    #        ', but the model was built using ', model_version)
+ 
+    with open(args.model, 'r') as jfile:
+      # NOTE: if you saved the file by calling json.dump(model.to_json(), ...)
+      # then you will have to call:
+      #
+      #   model = model_from_json(json.loads(jfile.read()))\
+      #
+      # instead.
+      model = model_from_json(jfile.read())
+    print('model opened')
+    model.compile("adam", "mse")
+    weights_file = args.model.replace('json', 'h5')
+    model.load_weights(weights_file)
+
+#    model = load_model(args.model)
+    print('model loaded')
 
     if args.image_folder != '':
         print("Creating image folder at {}".format(args.image_folder))
